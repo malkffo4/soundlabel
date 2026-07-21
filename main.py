@@ -9,6 +9,8 @@ if len(sys.argv) < 2:
     print('Usage: python music_title.py /path/to/folder')
     sys.exit(1)
 
+force = "--force" in sys.argv
+
 directory = os.path.abspath(os.path.expanduser(sys.argv[1]))
 
 if not os.path.isdir(directory):
@@ -23,14 +25,10 @@ for root, dirs, files in os.walk(directory):
     for filename in files:
         if filename.lower().endswith(".mp3"):
             name_without_ext = os.path.splitext(filename)[0]
-            
+
             # Пробуем разные варианты разделителей
-            parts = []
-            for sep in [" – ", " - ", " — "]:
-                if sep in name_without_ext:
-                    parts = name_without_ext.split(sep, 1)
-                    break
-            
+            parts = re.split(r"\s+[—–-]\s+", name_without_ext, maxsplit=1)
+
             if len(parts) == 2:
                 artist_from_file = clean_name(parts[0])
                 title_from_file = parts[1].strip()
@@ -44,7 +42,7 @@ for root, dirs, files in os.walk(directory):
                         tags = ID3()
                         tags.save(path)
                         audio = EasyID3(path)
-                    
+
                     # Проверяем, нужно ли обновление
                     curr_artist = audio.get('artist', [''])[0].strip()
                     curr_title = audio.get('title', [''])[0].strip()
@@ -52,13 +50,22 @@ for root, dirs, files in os.walk(directory):
                     changed = False
 
                     # Обновляем, если теги пустые или состоят только из цифр
-                    if not curr_artist or curr_artist.isdigit():
-                        audio['artist'] = artist_from_file
-                        changed = True
-                    
-                    if not curr_title:
-                        audio['title'] = title_from_file
-                        changed = True
+                    if force:
+                        if curr_artist != artist_from_file:
+                            audio['artist'] = artist_from_file
+                            changed = True
+
+                        if curr_title != title_from_file:
+                            audio['title'] = title_from_file
+                            changed = True
+                    else:
+                        if not curr_artist or curr_artist.isdigit():
+                            audio['artist'] = artist_from_file
+                            changed = True
+
+                        if not curr_title:
+                            audio['title'] = title_from_file
+                            changed = True
 
                     if changed:
                         # v2_version=3 — это ID3v2.3. Самый совместимый формат для кириллицы
